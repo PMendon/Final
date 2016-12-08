@@ -1,0 +1,57 @@
+libname final 'C:\Users\TEMP.CATNET\Downloads';
+
+/*merge all the datasets together*/ 
+DATA reglab; 
+	merge final.final_registration final.final_lab; 
+	by CaseID; 
+RUN; 
+
+DATA merged; 
+	merge reglab final.final_ae; 
+	by CaseID; 
+RUN; 
+
+/*Remove anyone under 18*/ 
+DATA merged2; 
+	set merged; 
+	tday=today(); 
+		if (tday-dob)<18 then delete; 
+	drop tday; 
+RUN; 
+
+/*Sort ascending by identifier variable*/ 
+PROC SORT data=merged2; 
+	by CaseID;
+RUN; 
+
+/*Split values from measures into their own variable*/
+PROC TRANSPOSE data=merged2 out=wide_merged; 
+	by CaseID lab_dt init_dt FU_dt ae ae_category group gender; 
+	ID measure; 
+	var value; 
+RUN; 
+
+/*Convert pounds to kg and inches to cm*/ 
+DATA wide_merged2; 
+	set wide_merged; 
+		if Weight_Kg_ = '.' then Weight_Kg_ = Weight_Pds_ /2.2; 
+		if Height_cm_ = '.' then Height_cm_ = Height_inch_ *2.54; 
+	drop weight_pds_;
+	drop height_inch_;
+RUN; 
+
+/*Create BMI Variable*/ 
+DATA wide_merged3 (drop = drop weight_pds_ height_inch_); 
+	set wide_merged2; 
+		BMI = (Weight_Kg_ / (Height_cm_**2))*10000;
+RUN; 
+
+/*Drop those with less than 30 BMI*/ 
+DATA wide_merged4; 
+	set wide_merged3; 
+		 if BMI < 30 then delete; 
+RUN; 
+
+/*The clean dataset*/
+PROC PRINT data=wide_merged4; 
+RUN; 
